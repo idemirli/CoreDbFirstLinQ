@@ -14,13 +14,31 @@ namespace CoreDbFirstLinQ.Controllers
     public class HomeController : Controller
     {
         //Giriş
-
-
-        class ProductModel
+        public class CustomerModel
         {
-            public string Name { get; set; }
+            public CustomerModel()
+            {
+                this.Orders = new List<OrderModel>();
+            }
+            public string CustomerId { get; set; }
+            public string CustomerName { get; set; }
+            public int OrderCount { get; set; }
+            public List<OrderModel> Orders { get; set; }
+        }
 
+        public class OrderModel
+        {
+            public int OrderId { get; set; }
+            public decimal Total { get; set; }
+            public List<ProductModel> Products { get; set; }
+        }
+
+        public class ProductModel
+        {
+            public int ProductId { get; set; }
+            public string Name { get; set; }
             public decimal? Price { get; set; }
+            public int Quantity { get; set; }
         }
 
 
@@ -29,19 +47,19 @@ namespace CoreDbFirstLinQ.Controllers
             using (var db = new NorthwindContext())
             {
                 #region [SELECT SORGULARI]
-              //  DbSelect(db);             //Select sorguları
+                //  DbSelect(db);             //Select sorguları
                 #endregion
 
                 #region [WHERE SORGULARI]
-             //   DbWhere(db);              //Where Sorguları
+                //   DbWhere(db);              //Where Sorguları
                 #endregion
 
                 #region [TAKE-SKIP KULLANIMI]
-              //  DbTakeSkip(db);           //Take-Skip Kullanımı
+                //  DbTakeSkip(db);           //Take-Skip Kullanımı
                 #endregion
 
                 #region [SIRALAMA HESAPLAMA İŞLEMLERİ]
-              //  DbSiralamaHesaplama(db);  //Siralama hesaplama işlemleri
+                //  DbSiralamaHesaplama(db);  //Siralama hesaplama işlemleri
                 #endregion
 
 
@@ -51,34 +69,65 @@ namespace CoreDbFirstLinQ.Controllers
                 #region [KAYIT İŞLEMLERİ]
 
                 #region[KAYIT EKLEME]
-              //  KayitEkle(db);
+                //  KayitEkle(db);
                 #endregion
 
 
                 #region [KAYIT GÜNCELLEME]
-              //  KayitGuncelle(db);
+                //  KayitGuncelle(db);
                 #endregion
 
 
                 #region [CHANGE TRACKING]
-              //  var product1 = db.Products.AsNoTracking().FirstOrDefault();  //AsNoTracking kullandığımda bu nesne üzerinde güncelleme yaparsam db ye yansımayacak.
+                //  var product1 = db.Products.AsNoTracking().FirstOrDefault();  //AsNoTracking kullandığımda bu nesne üzerinde güncelleme yaparsam db ye yansımayacak.
                 #endregion
 
 
                 #region [KAYIT SİLME]
 
-             //   KayitSilme(db);
+                //   KayitSilme(db);
 
                 #endregion
 
                 #endregion
 
+
+                #region [BiRDEN FAZLA TABLO İLE ÇALIŞMA]
+
+                //BirdenFazlaTabloIleCalisma_1(db);
+
+                //BirdenFazlaTabloIleCalisma_2(db);
+                #endregion
+
+
+                //************************
+
+                #region [KLASİK SQL SORGULARININ ENTİTY FRAMEWORK İLE KULLANILMASI]
+
+                #region [DELETE - UPDATE]
+                var sonuc = db.Database.ExecuteSqlRaw("delete from Products where productId=81");  //sonuc = 1 veya 0  gelir.
+                #endregion
+
+                #region [SELECT]
+                var query = 4;
+                var products = db.Products.FromSqlRaw("select * from Products where categortyId=4").ToList();
+                var products2 = db.Products.FromSqlRaw($"select * from Products where categortyId={query}").ToList();   // * kullanmak zorunlu , spesifik olarak kolon seçiminde hata alınır.
+                #endregion
+
+                #region [CustomContext Oluşturulup Kullanılması]
+                using (var customDb=new CustomNorthwindContext())
+                {
+                    var products3 = customDb.ProductModel.FromSqlRaw("select ProductId,ProductName ,UnitPrice  from Products").ToList();  // CustomNorthwindContext içinde OnModelCreating'te mapping yapmamız gerekiyor.
+                }
+                #endregion
+
+                #endregion
             }
 
             return View();
         }
 
-      
+
 
         public IActionResult Privacy()
         {
@@ -198,5 +247,100 @@ namespace CoreDbFirstLinQ.Controllers
             db.Products.AddRange(lstProduct);
             db.SaveChanges();
         }
+
+
+        private static void BirdenFazlaTabloIleCalisma_1(NorthwindContext db)
+        {
+            //var products = db.Products.Where(p => p.CategoryId == 1).ToList();
+            //var products = db.Products.Include(p=>p.Category).Where(p => p.Category.CategoryName == "Beverages").ToList();
+            //var products = db.Products
+            //    .Where(p => p.Category.CategoryName == "Beverages")
+            //    .Select(p=>new
+            //    {
+            //        name = p.ProductName,
+            //        id = p.CategoryId,
+            //        categoryname =p.Category.CategoryName
+            //    })
+            //    .ToList();
+
+            //var categories = db.Categories.Where(c => c.Products.Count() == 0).ToList();
+            //var categories = db.Categories.Where(c => c.Products.Any()).ToList();
+
+            //var products = db.Products
+            //    .Select(p =>                     
+            //        new {
+            //            companyName = p.Supplier.CompanyName,
+            //            contactName = p.Supplier.ContactName,
+            //            p.ProductName
+            //        }).ToList();
+
+            // extension methods
+            // query expressions
+
+            //var products = (from p in db.Products
+            //                where p.UnitPrice>10
+            //               select p).ToList();
+
+            var products = (from p in db.Products
+                            join s in db.Suppliers on p.SupplierId equals s.SupplierId
+                            select new
+                            {
+                                p.ProductName,
+                                contactName = s.ContactName,
+                                companyName = s.CompanyName
+                            }).ToList();
+
+
+            foreach (var item in products)
+            {
+                Console.WriteLine(item.ProductName + " " + item.companyName + " " + item.contactName);
+            }
+        }
+
+        private static void BirdenFazlaTabloIleCalisma_2(NorthwindContext db)
+        {
+
+            // Müşterilerin verdiği sipariş toplamı ?
+
+            var customers = db.Customers
+                .Where(cus => cus.CustomerId == "PERIC")
+                .Select(cus => new CustomerModel
+                {
+                    CustomerId = cus.CustomerId,
+                    CustomerName = cus.ContactName,
+                    OrderCount = cus.Orders.Count,
+                    Orders = cus.Orders.Select(order => new OrderModel
+                    {
+                        OrderId = order.OrderId,
+                        Total = order.OrderDetails.Sum(od => od.Quantity * od.UnitPrice),
+                        Products = order.OrderDetails.Select(od => new ProductModel
+                        {
+                            ProductId = od.ProductId,
+                            Name = od.Product.ProductName,
+                            Price = od.UnitPrice,
+                            Quantity = od.Quantity
+                        }).ToList()
+                    }).ToList()
+                })
+                .OrderBy(i => i.OrderCount)
+                .ToList();
+
+            foreach (var customer in customers)
+            {
+                Console.WriteLine(customer.CustomerId + "=>" + customer.CustomerName + " => " + customer.OrderCount);
+                Console.WriteLine("Siparişler");
+                foreach (var order in customer.Orders)
+                {
+                    Console.WriteLine("*****************************");
+                    Console.WriteLine(order.OrderId + "=>" + order.Total);
+                    foreach (var product in order.Products)
+                    {
+                        Console.WriteLine(product.ProductId + "=>" + product.Name + "=>" + product.Price + "=>" + product.Quantity);
+                    }
+                }
+            }
+            Console.ReadLine();
+        }
+
     }
 }
